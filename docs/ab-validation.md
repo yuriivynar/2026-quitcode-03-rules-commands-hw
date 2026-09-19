@@ -245,7 +245,9 @@ cd /d/2026-quitcode-03-rules-commands-hw
 } > docs/ab/a-metrics.txt 2>&1
 cat docs/ab/a-metrics.txt
 
-git add -N app && git diff --output=docs/ab/a-rules-on.diff -- app
+# діф пишемо лише якщо агент справді щось змінив — порожній файл доказом не є
+git add -N app
+git diff --quiet -- app || git diff --output=docs/ab/a-rules-on.diff -- app
 ```
 
 ## Результат прогону A

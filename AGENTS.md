@@ -30,14 +30,16 @@ app/src/
 ## Головні правила
 
 - `app/src/core/**`, `app/scripts/**`, `materials/**`, `.coderabbit.yaml`,
-  `.github/**` не редагуються — задача впирається в них, зупинись і дай звіт.
-- Залежності йдуть в один бік: `integrations/` і `sync/` → `core/`, ніколи навпаки.
-- Помилки — це значення (`Result<T>`), а не винятки.
+  `.github/**` не редагуються — задача впирається в них, зупинись і дай звіт
+  (`do-not-touch`).
+- Залежності йдуть в один бік: `integrations/` і `sync/` → `core/`, ніколи навпаки
+  (`architecture`).
+- Помилки — це значення (`Result<T>`), а не винятки (`conventions`).
 - HTTP, змінні середовища, JSON і журнал — лише через функції ядра
   (`postJson`, `readEnv`, `parseJson` + guard, `log`), не через `fetch` /
-  `process.env` / `JSON.parse` / `console.*`.
-- Без `any` і без нових залежностей.
-- В сповіщення (Slack, месенджери) не йдуть email і телефон ліда.
+  `process.env` / `JSON.parse` / `console.*` (`conventions`).
+- Без `any` і без нових залежностей (`conventions`).
+- В сповіщення (Slack, месенджери) не йдуть email і телефон ліда (`conventions`).
 
 Деталі, обхідні шляхи й команди перевірки — у `.claude/rules/`:
 `architecture.md`, `conventions.md`, `do-not-touch.md`. Не переказуй їх тут —
