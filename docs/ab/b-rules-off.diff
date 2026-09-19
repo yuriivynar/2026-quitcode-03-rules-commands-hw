@@ -1,0 +1,83 @@
+diff --git a/app/src/core/types.ts b/app/src/core/types.ts
+index 72303a0..e5d6c63 100644
+--- a/app/src/core/types.ts
++++ b/app/src/core/types.ts
+@@ -9,6 +9,8 @@ export interface Lead {
+   phone?: string;
+   source: "website" | "instagram" | "referral";
+   budgetUsd?: number;
++  /** Рекламна кампанія, з якої прийшов лід (`utmCampaign` у формі сайту). */
++  campaign?: string;
+   /** ISO-8601, UTC. */
+   createdAt: string;
+ }
+diff --git a/app/src/integrations/sheets-append.test.ts b/app/src/integrations/sheets-append.test.ts
+index 12e42ce..3a858aa 100644
+--- a/app/src/integrations/sheets-append.test.ts
++++ b/app/src/integrations/sheets-append.test.ts
+@@ -7,6 +7,7 @@ const lead: Lead = {
+   name: "Андрій Тестовий",
+   email: "andrii@studio-nova.example.test",
+   source: "instagram",
++  campaign: "autumn-sale-2026",
+   createdAt: "2026-09-10T09:30:00.000Z",
+ };
+ 
+@@ -32,7 +33,16 @@ describe("sheets-append", () => {
+     const [url, init] = fetchMock.mock.calls[0]!;
+     expect(url).toBe("https://sheets.example.test/append?token=fake-sheets-token-0000");
+     expect(JSON.parse(String(init?.body))).toEqual({
+-      values: [["2026-09-10T09:30:00.000Z", "Андрій Тестовий", "andrii@studio-nova.example.test", "", "instagram"]],
++      values: [
++        [
++          "2026-09-10T09:30:00.000Z",
++          "Андрій Тестовий",
++          "andrii@studio-nova.example.test",
++          "",
++          "instagram",
++          "autumn-sale-2026",
++        ],
++      ],
+     });
+   });
+ 
+@@ -41,4 +51,26 @@ describe("sheets-append", () => {
+ 
+     await expect(sheetsAppend.send(lead)).resolves.toEqual({ ok: false, error: "sheets error: quota_exceeded" });
+   });
++
++  it("пише порожню колонку кампанії, якщо utmCampaign відсутній", async () => {
++    const leadWithoutCampaign: Lead = { ...lead, campaign: undefined };
++    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response('{"status":"ok"}', { status: 200 }));
++    vi.stubGlobal("fetch", fetchMock);
++
++    await expect(sheetsAppend.send(leadWithoutCampaign)).resolves.toEqual({ ok: true, value: undefined });
++
++    const [, init] = fetchMock.mock.calls[0]!;
++    expect(JSON.parse(String(init?.body))).toEqual({
++      values: [
++        [
++          "2026-09-10T09:30:00.000Z",
++          "Андрій Тестовий",
++          "andrii@studio-nova.example.test",
++          "",
++          "instagram",
++          "",
++        ],
++      ],
++    });
++  });
+ });
+diff --git a/app/src/integrations/sheets-append.ts b/app/src/integrations/sheets-append.ts
+index e74fd05..bccd718 100644
+--- a/app/src/integrations/sheets-append.ts
++++ b/app/src/integrations/sheets-append.ts
+@@ -26,7 +26,7 @@ const sheetsAppend: Integration = {
+ 
+     const url = `${webhookUrl.value}?token=${token.value}`;
+     const response = await postJson(url, {
+-      values: [[lead.createdAt, lead.name, lead.email, lead.phone ?? "", lead.source]],
++      values: [[lead.createdAt, lead.name, lead.email, lead.phone ?? "", lead.source, lead.campaign ?? ""]],
+     });
+     if (!response.ok) {
+       log.error(`sheets-append: lead ${lead.id} not delivered: ${response.error}`);

@@ -1,0 +1,57 @@
+]633;E;{   echo "=== npm test ==="\x3b   npm --prefix app test 2>&1 | tail -8\x3b   echo\x3b echo "=== check:rules ==="\x3b   npm --prefix app run check:rules 2>&1 | tail -20\x3b   echo\x3b echo "=== git status --short ==="\x3b   git status --short\x3b   echo\x3b echo "=== чи зачеплено захищене ==="\x3b   git status --porcelain -- app/src/core app/scripts materials\x3b } > docs/ab/b-metrics.txt 2>&1;6598e5e0-5f5a-45fe-9211-837dd60a131f]633;C=== npm test ===
+ [32m✓[39m src/integrations/telegram-notify.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/integrations/sheets-append.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m7 passed[39m[22m[90m (7)[39m
+[2m      Tests [22m [1m[32m24 passed[39m[22m[90m (24)[39m
+[2m   Start at [22m 13:52:12
+[2m   Duration [22m 370ms[2m (transform 50%, tests 23%, import 22%, worker 5%)[22m
+
+
+=== check:rules ===
+
+check:rules — 11 source files, 7 rules
+
+  src/sync/state.ts  json-via-parse   line 14
+  src/core/types.ts  core-untouched   modified
+
+by rule:
+  http-via-core     0
+  env-via-config    0
+  json-via-parse    1   JSON only through parseJson(text, guard) from src/core/parse.ts
+  log-via-logger    0
+  no-any            0
+  no-new-deps       0
+  core-untouched    1   src/core/** is protected: no edits, additions or deletions
+
+by file:
+  src/sync/state.ts    1
+  src/core/types.ts    1
+
+TOTAL: 2 violation(s)
+
+=== git status --short ===
+ D .claude/commands/analyze-error.md
+ D .claude/commands/generate-integration.md
+ D .claude/commands/refactor.md
+ D .claude/hooks/protect-core.mjs
+ D .claude/rules/architecture.md
+ D .claude/rules/conventions.md
+ D .claude/rules/do-not-touch.md
+ D .claude/settings.json
+ D AGENTS.md
+ D CLAUDE.md
+ M app/src/core/types.ts
+ M app/src/integrations/sheets-append.test.ts
+ M app/src/integrations/sheets-append.ts
+ M docs/ab-validation.md
+?? .claude/commands.off/
+?? .claude/hooks.off/
+?? .claude/rules.off/
+?? .claude/settings.json.off
+?? AGENTS.md.off
+?? CLAUDE.md.off
+?? docs/ab/
+
+=== чи зачеплено захищене ===
+ M app/src/core/types.ts
