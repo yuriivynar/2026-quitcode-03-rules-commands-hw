@@ -4,12 +4,25 @@
 // захищену зону, пише причину в stderr і виходить з кодом 2 (дію заблоковано).
 //
 // Node, а не bash — щоб працювало й на Windows.
-import { relative, resolve, sep } from "node:path";
+import { dirname, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /** Теки з do-not-touch.md. Усе, що всередині, — недоторкане. */
-const PROTECTED_DIRS = ["app/src/core", "app/scripts", "materials", ".github"];
+const PROTECTED_DIRS = [
+  "app/src/core",
+  "app/scripts",
+  "materials",
+  ".github",
+  // Сам механізм примусу: do-not-touch прямо забороняє «послабити чи вимкнути
+  // перевірку … правкою власних правил чи хуків у .claude/**». Без цього рядка
+  // хук дозволяв би відредагувати самого себе — а це перший обхід, який агент
+  // пропонує, щойно впирається в заборону (див. docs/ab-validation.md, крок 1).
+  // `.claude/rules` і `.claude/commands` навмисно НЕ тут: це звичайний робочий
+  // вміст, який має лишатись редагованим.
+  ".claude/hooks",
+];
 /** Окремі файли звідти ж. */
-const PROTECTED_FILES = [".coderabbit.yaml"];
+const PROTECTED_FILES = [".coderabbit.yaml", ".claude/settings.json"];
 
 const BLOCK = 2;
 const ALLOW = 0;
@@ -48,8 +61,16 @@ if (typeof filePath !== "string" || filePath.trim() === "") {
   block(`інструмент ${payload.tool_name ?? "?"} не назвав шлях, який він змінює`);
 }
 
-const root = resolve(payload.cwd ?? process.cwd());
-const rel = relative(root, resolve(root, filePath)).split(sep).join("/");
+// Корінь репозиторію рахуємо від самого скрипта (.claude/hooks/ → два рівні вгору),
+// а НЕ від payload.cwd: якщо сесія працює в підтеці (`cd app`, як у walkthrough),
+// шлях, порахований від cwd, перестає збігатися з "app/src/core/**" — і захист
+// тихо зникає. Перевірено: з cwd = <repo>/app правка ядра проходила повз хук.
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+// Відносний шлях розкриваємо від cwd сесії (це його справжня база); абсолютний
+// resolve() лишає як є. Порівнюємо завжди з коренем репозиторію.
+const target = resolve(payload.cwd ?? process.cwd(), filePath);
+const rel = relative(repoRoot, target).split(sep).join("/");
 
 // Поза проєктом — не наша зона відповідальності.
 if (rel === "" || rel.startsWith("../")) process.exit(ALLOW);
