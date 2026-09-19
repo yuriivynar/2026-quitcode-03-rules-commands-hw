@@ -235,4 +235,64 @@ See [AGENTS.md](./AGENTS.md) for project conventions.
 
 ## Task E (бонус) — хук
 
-Не виконувався.
+- **Файли:** `.claude/settings.json` (`PreToolUse`, matcher `Edit|Write|MultiEdit|NotebookEdit`)
+  і `.claude/hooks/protect-core.mjs` (Node, щоб працювало на Windows).
+- **Що закриває:** не лише `app/src/core/**`, а весь перелік із `do-not-touch.md` —
+  `app/scripts/**`, `materials/**`, `.github/**`, `.coderabbit.yaml`.
+
+### Перевірка на рівні скрипта (виконано)
+
+Скрипту подавали на stdin той самий JSON, що надсилає Claude Code. Вихід `2` =
+дію заблоковано.
+
+| Вхід | exit | Причина зі stderr |
+|---|---|---|
+| `app/src/core/log.ts` | `2` | `спроба змінити app/src/core/log.ts — це app/src/core/**` |
+| `D:…appsrccore	ypes.ts` (абсолютний Windows) | `2` | `спроба змінити app/src/core/types.ts — це app/src/core/**` |
+| `app/src/Core/Log.ts` (інший регістр) | `2` | `спроба змінити app/src/Core/Log.ts — це app/src/core/**` |
+| `app/src/integrations/../core/http.ts` | `2` | `спроба змінити app/src/core/http.ts — це app/src/core/**` |
+| `app/scripts/core.lock.json` | `2` | `спроба змінити app/scripts/core.lock.json — це app/scripts/**` |
+| `materials/ab-task.md` | `2` | `спроба змінити materials/ab-task.md — це materials/**` |
+| `.coderabbit.yaml` | `2` | `спроба змінити .coderabbit.yaml` |
+| `NotebookEdit` → `core/x.ipynb` | `2` | `спроба змінити app/src/core/x.ipynb — це app/src/core/**` |
+| битий JSON на stdin | `2` | `не вдалося розібрати вхідний JSON хука, тому шлях невідомий` |
+| `Edit` без `file_path` | `2` | `інструмент Edit не назвав шлях, який він змінює` |
+| `app/src/integrations/slack-notify.ts` | `0` | пропущено |
+| `app/src/sync/state.ts` | `0` | пропущено |
+| `docs/ab-validation.md` | `0` | пропущено |
+| `app/src/core-helpers/x.ts` | `0` | пропущено — `core-helpers` не є `core/` |
+
+Повна цитата відповіді хука на спробу змінити ядро:
+
+```
+Заблоковано хуком protect-core: спроба змінити app/src/core/log.ts — це app/src/core/**
+Це захищена зона (.claude/rules/do-not-touch.md). Правити її не можна — ні «дрібний
+фікс», ні «одне поле», ні обхід копією в integrations/.
+Зупинись і дай звіт за чотирма пунктами правила do-not-touch: що саме треба змінити
+(файл, експорт, сигнатура) і навіщо; що вже зроблено поза захищеними шляхами; який
+обхід теоретично можливий і чому він гірший; далі чекай відповіді людини.
+```
+
+Два рішення, які варто назвати окремо:
+
+1. **Регістр.** Windows порівнює шляхи без урахування регістру, тож `app/src/Core/log.ts`
+   — той самий файл. Скрипт порівнює в нижньому регістрі, інакше це був би обхід у
+   один символ.
+2. **Битий вхід блокується, а не пропускається.** Якби хук при нерозібраному JSON
+   мовчки виходив з `0`, захист зник би непомітно — рівно той механізм, що
+   спричинив нічний інцидент у `sync/state.ts`. Тому невідомий вхід = відмова.
+
+### Перевірка end-to-end (лишилась на нову сесію)
+
+`.claude/settings.json` читається **на старті сесії**. У сесії, де його щойно
+створили, хук ще не активний, тому справжня спроба `Edit` по `app/src/core/log.ts`
+з неї нічого б не довела — а якби хук не підхопився, вона б реально змінила ядро.
+Ризикувати заради «доказу» немає сенсу.
+
+Що зробити в новій сесії (після повного перезапуску Claude Code):
+
+> додай коментар на початок `app/src/core/log.ts`
+
+Очікується: дію заблоковано, у відповіді — текст `Заблоковано хуком protect-core…`
+з блоку вище. Після спроби звірити: `cd app && npm run check:rules` →
+`core-untouched 0` і `git status --short` → `app/src/core/` чистий.
