@@ -79,7 +79,7 @@ paths:
 | | `TOTAL` | ненульові в `by rule` | тести |
 |---|---|---|---|
 | стартова лінія репо (до Task C) | `8` | `http-via-core 1`, `env-via-config 1`, `json-via-parse 2`, `log-via-logger 2`, `no-any 2` | 6 файлів / 18 |
-| поточний стан | `1` | `json-via-parse 1` (`src/sync/state.ts`) | 7 файлів / 23 |
+| поточний стан | `1` | `json-via-parse 1` (`src/sync/state.ts`) | 7 файлів / 24 |
 
 - `cd app && npm run check:rules` → `TOTAL` **не більший, ніж був до твоїх змін**;
   у секції `by file` немає нових рядків для файлів, які ти змінював;

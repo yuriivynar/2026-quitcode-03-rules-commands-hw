@@ -36,6 +36,19 @@ describe("sheets-append", () => {
     });
   });
 
+  it("не повторює запит після 5xx — рядок не задвоюється", async () => {
+    // Таблиця могла вже додати рядок і лише потім впасти. Повтор створив би дублікат,
+    // тому спроба має бути рівно одна.
+    const fetchMock = vi.fn(async () => new Response("upstream boom", { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await sheetsAppend.send(lead);
+
+    expect(result.ok).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("повертає помилку, якщо таблиця відповіла не ok", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response('{"status":"quota_exceeded"}', { status: 200 })));
 

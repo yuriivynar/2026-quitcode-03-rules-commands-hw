@@ -12,7 +12,7 @@
 | Команда | Що робить |
 |---|---|
 | `npm install` | встановлення (є лише devDependencies) |
-| `npm test` | Vitest, зараз 7 файлів / 23 тести |
+| `npm test` | Vitest, зараз 7 файлів / 24 тести |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run check:rules` | статична перевірка конвенцій, зараз `TOTAL: 1 violation(s)` |
 
@@ -31,15 +31,15 @@ app/src/
 
 - `app/src/core/**`, `app/scripts/**`, `materials/**`, `.coderabbit.yaml`,
   `.github/**` не редагуються — задача впирається в них, зупинись і дай звіт
-  (`do-not-touch`).
+  ([do-not-touch](.claude/rules/do-not-touch.md)).
 - Залежності йдуть в один бік: `integrations/` і `sync/` → `core/`, ніколи навпаки
-  (`architecture`).
-- Помилки — це значення (`Result<T>`), а не винятки (`conventions`).
+  ([architecture](.claude/rules/architecture.md)).
+- Помилки — це значення (`Result<T>`), а не винятки ([conventions](.claude/rules/conventions.md)).
 - HTTP, змінні середовища, JSON і журнал — лише через функції ядра
   (`postJson`, `readEnv`, `parseJson` + guard, `log`), не через `fetch` /
-  `process.env` / `JSON.parse` / `console.*` (`conventions`).
-- Без `any` і без нових залежностей (`conventions`).
-- В сповіщення (Slack, месенджери) не йдуть email і телефон ліда (`conventions`).
+  `process.env` / `JSON.parse` / `console.*` ([conventions](.claude/rules/conventions.md)).
+- Без `any` і без нових залежностей ([conventions](.claude/rules/conventions.md)).
+- В сповіщення (Slack, месенджери) не йдуть email і телефон ліда ([conventions](.claude/rules/conventions.md)).
 
 Деталі, обхідні шляхи й команди перевірки — у `.claude/rules/`:
 `architecture.md`, `conventions.md`, `do-not-touch.md`. Не переказуй їх тут —

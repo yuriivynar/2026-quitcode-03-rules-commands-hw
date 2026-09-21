@@ -25,9 +25,18 @@ const sheetsAppend: Integration = {
     if (!token.ok) return token;
 
     const url = `${webhookUrl.value}?token=${token.value}`;
-    const response = await postJson(url, {
-      values: [[lead.createdAt, lead.name, lead.email, lead.phone ?? "", lead.source]],
-    });
+    // `retries: 0` навмисно, на відміну від slack-notify з типовими двома повторами.
+    // append не ідемпотентний: якщо таблиця опрацювала запит і лише потім віддала
+    // 5xx, повтор додасть той самий рядок удруге — а дублікати в таблиці обліку це
+    // рівно той збій, з якого почалась історія цього проєкту. Сповіщення можна
+    // продублювати без наслідків, рядок у системі обліку — ні.
+    // Це ще й повертає поведінку спадкового коду: до рефакторингу тут був голий
+    // fetch, тобто рівно одна спроба.
+    const response = await postJson(
+      url,
+      { values: [[lead.createdAt, lead.name, lead.email, lead.phone ?? "", lead.source]] },
+      { retries: 0 },
+    );
     if (!response.ok) {
       log.error(`sheets-append: lead ${lead.id} not delivered: ${response.error}`);
       return response;
