@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { log } from "../core/log.js";
 import type { Lead } from "../core/types.js";
 import sheetsAppend from "./sheets-append.js";
 
@@ -41,12 +42,14 @@ describe("sheets-append", () => {
     // тому спроба має бути рівно одна.
     const fetchMock = vi.fn(async () => new Response("upstream boom", { status: 500 }));
     vi.stubGlobal("fetch", fetchMock);
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const logError = vi.spyOn(log, "error").mockImplementation(() => {});
 
     const result = await sheetsAppend.send(lead);
 
     expect(result.ok).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Невдача не мовчазна: рівно один запис у журнал через log, не через console.
+    expect(logError).toHaveBeenCalledTimes(1);
   });
 
   it("повертає помилку, якщо таблиця відповіла не ok", async () => {
