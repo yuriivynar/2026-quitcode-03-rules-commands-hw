@@ -57,4 +57,16 @@ describe("sheets-append", () => {
 
     await expect(sheetsAppend.send(lead)).resolves.toEqual({ ok: false, error: "sheets error: quota_exceeded" });
   });
+
+  it("не пише токен таблиці в журнал, коли таблиця відповіла не ok", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response('{"status":"quota_exceeded"}', { status: 200 })));
+    // Шпигуємо за log, тож маскування ядра (`redact`) тут не працює: тест бачить те,
+    // що модуль сам передав у журнал. URL разом із `?token=` туди потрапляти не повинен.
+    const logError = vi.spyOn(log, "error").mockImplementation(() => {});
+
+    await sheetsAppend.send(lead);
+
+    expect(logError).toHaveBeenCalledTimes(1);
+    expect(logError.mock.calls.flat().join("\n")).not.toContain("fake-sheets-token-0000");
+  });
 });

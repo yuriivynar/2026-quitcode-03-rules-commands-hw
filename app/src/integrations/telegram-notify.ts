@@ -16,6 +16,14 @@ const isTelegramResponse = (value: unknown): value is TelegramResponse =>
   typeof value.ok === "boolean" &&
   (value.description === undefined || isString(value.description));
 
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Мінімізація даних: у месенджер ідуть лише ім'я, джерело й бюджет — без email і телефону.
  *
@@ -41,6 +49,10 @@ export const telegramNotify: Integration = {
 
     const chatId = readEnv("TELEGRAM_CHAT_ID");
     if (!chatId.ok) return chatId;
+
+    // Токен бота йде в шляху URL (так вимагає Bot API), тож без TLS він піде відкритим
+    // текстом. Перевіряємо до побудови URL і до будь-якого запиту.
+    if (!isHttpsUrl(apiUrl.value)) return { ok: false, error: "TELEGRAM_API_URL must be an https:// URL" };
 
     const url = `${apiUrl.value}/bot${botToken.value}/sendMessage`;
     const response = await postJson(url, {

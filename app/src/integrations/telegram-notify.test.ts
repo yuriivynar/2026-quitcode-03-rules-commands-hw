@@ -64,6 +64,21 @@ describe("telegram-notify", () => {
     });
   });
 
+  it.each([
+    ["http-адресу", "http://tg.example.test"],
+    ["не-URL", "tg.example.test"],
+  ])("відхиляє %s в TELEGRAM_API_URL і не шле токен у мережу", async (_label, value) => {
+    vi.stubEnv("TELEGRAM_API_URL", value);
+    const fetchMock = vi.fn(async () => new Response('{"ok":true}', { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(telegramNotify.send(lead)).resolves.toEqual({
+      ok: false,
+      error: "TELEGRAM_API_URL must be an https:// URL",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("передає причину відмови Telegram у текст помилки", async () => {
     vi.stubGlobal(
       "fetch",

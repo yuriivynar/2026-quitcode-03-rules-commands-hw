@@ -49,7 +49,9 @@ const sheetsAppend: Integration = {
     }
 
     if (data.value.status !== "ok") {
-      log.error(`sheets-append failed: ${url} -> ${data.value.status}`);
+      // Без `url`: у ньому `?token=`. Маскування в log — остання лінія оборони,
+      // а не причина віддавати йому секрет.
+      log.error(`sheets-append: lead ${lead.id} rejected by sheets: ${data.value.status}`);
       return { ok: false, error: `sheets error: ${data.value.status}` };
     }
 
