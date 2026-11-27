@@ -1,0 +1,162 @@
+diff --git a/app/src/integrations/index.ts b/app/src/integrations/index.ts
+index 5e062d4..ef30a71 100644
+--- a/app/src/integrations/index.ts
++++ b/app/src/integrations/index.ts
+@@ -2,5 +2,6 @@
+ import type { Integration } from "../core/types.js";
+ import sheetsAppend from "./sheets-append.js";
+ import { slackNotify } from "./slack-notify.js";
++import { telegramNotify } from "./telegram-notify.js";
+ 
+-export const integrations: readonly Integration[] = [slackNotify, sheetsAppend];
++export const integrations: readonly Integration[] = [slackNotify, sheetsAppend, telegramNotify];
+diff --git a/app/src/integrations/telegram-notify.test.ts b/app/src/integrations/telegram-notify.test.ts
+new file mode 100644
+index 0000000..afa434d
+--- /dev/null
++++ b/app/src/integrations/telegram-notify.test.ts
+@@ -0,0 +1,90 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++import { log } from "../core/log.js";
++import type { Lead } from "../core/types.js";
++import { formatTelegramMessage, telegramNotify } from "./telegram-notify.js";
++
++const lead: Lead = {
++  id: "ld_0001",
++  name: "Олена Тестова",
++  email: "olena@studio-nova.example.test",
++  phone: "+380 (00) 000-00-00",
++  source: "website",
++  budgetUsd: 4000,
++  createdAt: "2026-09-10T08:00:00.000Z",
++};
++
++const fakeToken = "fake-telegram-bot-token-0001";
++
++beforeEach(() => {
++  vi.stubEnv("TELEGRAM_API_URL", "https://api.telegram.example.test");
++  vi.stubEnv("TELEGRAM_BOT_TOKEN", fakeToken);
++  vi.stubEnv("TELEGRAM_CHAT_ID", "-100000000001");
++  vi.spyOn(console, "log").mockImplementation(() => {});
++  vi.spyOn(console, "error").mockImplementation(() => {});
++});
++
++afterEach(() => {
++  vi.unstubAllEnvs();
++  vi.unstubAllGlobals();
++  vi.restoreAllMocks();
++});
++
++describe("telegram-notify", () => {
++  it("надсилає повідомлення в sendMessage без email і телефону", async () => {
++    const fetchMock = vi.fn(
++      async (_url: string, _init?: RequestInit) => new Response('{"ok":true,"result":{}}', { status: 200 }),
++    );
++    vi.stubGlobal("fetch", fetchMock);
++
++    const result = await telegramNotify.send(lead);
++
++    expect(result).toEqual({ ok: true, value: undefined });
++    const [url, init] = fetchMock.mock.calls[0]!;
++    expect(url).toBe(`https://api.telegram.example.test/bot${fakeToken}/sendMessage`);
++    const body = String(init?.body);
++    expect(JSON.parse(body)).toEqual({ chat_id: "-100000000001", text: formatTelegramMessage(lead) });
++    expect(body).not.toContain(lead.email);
++    expect(body).not.toContain("+380");
++  });
++
++  it("повертає помилку, якщо не задано TELEGRAM_BOT_TOKEN", async () => {
++    vi.stubEnv("TELEGRAM_BOT_TOKEN", "");
++    const fetchMock = vi.fn();
++    vi.stubGlobal("fetch", fetchMock);
++
++    await expect(telegramNotify.send(lead)).resolves.toEqual({
++      ok: false,
++      error: "missing environment variable TELEGRAM_BOT_TOKEN",
++    });
++    expect(fetchMock).not.toHaveBeenCalled();
++  });
++
++  it("помилка від Telegram: токен не потрапляє ні в Result.error, ні в log.error", async () => {
++    const errorSpy = vi.spyOn(log, "error");
++    vi.stubGlobal(
++      "fetch",
++      vi.fn(async () => new Response('{"ok":false,"error_code":400,"description":"Bad Request"}', { status: 400 })),
++    );
++
++    const result = await telegramNotify.send(lead);
++
++    expect(result.ok).toBe(false);
++    if (result.ok) return;
++    expect(result.error).toContain("HTTP 400");
++    expect(result.error).not.toContain(fakeToken);
++    expect(errorSpy).toHaveBeenCalledTimes(1);
++    expect(String(errorSpy.mock.calls[0]![0])).not.toContain(fakeToken);
++  });
++
++  it("відмовляє, якщо TELEGRAM_API_URL не https", async () => {
++    vi.stubEnv("TELEGRAM_API_URL", "http://api.telegram.example.test");
++    const fetchMock = vi.fn();
++    vi.stubGlobal("fetch", fetchMock);
++
++    await expect(telegramNotify.send(lead)).resolves.toEqual({
++      ok: false,
++      error: "telegram-notify: TELEGRAM_API_URL must use https",
++    });
++    expect(fetchMock).not.toHaveBeenCalled();
++  });
++});
+diff --git a/app/src/integrations/telegram-notify.ts b/app/src/integrations/telegram-notify.ts
+new file mode 100644
+index 0000000..b6a4577
+--- /dev/null
++++ b/app/src/integrations/telegram-notify.ts
+@@ -0,0 +1,48 @@
++// Сповіщення про новий лід у Telegram-чат менеджерів (Bot API, метод sendMessage).
++// Токен бота стоїть у шляху URL (`/bot<token>/`), тому помилки маскуються перед журналом і поверненням.
++import { readEnv } from "../core/config.js";
++import { postJson } from "../core/http.js";
++import { log, redact } from "../core/log.js";
++import { isRecord, parseJson } from "../core/parse.js";
++import type { Integration, Lead, Result } from "../core/types.js";
++
++const isTelegramOk = (value: unknown): value is { ok: true } => isRecord(value) && value.ok === true;
++
++export function formatTelegramMessage(lead: Lead): string {
++  const budget = lead.budgetUsd === undefined ? "бюджет не вказано" : `бюджет $${lead.budgetUsd}`;
++  return `Новий лід: ${lead.name} · ${lead.source} · ${budget}`;
++}
++
++function fail(leadId: string, error: string, token: string): Result<void> {
++  const safe = redact(error.replaceAll(token, "<REDACTED>"));
++  log.error(`telegram-notify: lead ${leadId} not delivered: ${safe}`);
++  return { ok: false, error: safe };
++}
++
++export const telegramNotify: Integration = {
++  name: "telegram-notify",
++  requiredEnv: ["TELEGRAM_API_URL", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"],
++
++  async send(lead: Lead): Promise<Result<void>> {
++    const apiUrl = readEnv("TELEGRAM_API_URL");
++    if (!apiUrl.ok) return apiUrl;
++    const token = readEnv("TELEGRAM_BOT_TOKEN");
++    if (!token.ok) return token;
++    const chatId = readEnv("TELEGRAM_CHAT_ID");
++    if (!chatId.ok) return chatId;
++
++    if (!apiUrl.value.startsWith("https://")) {
++      return { ok: false, error: "telegram-notify: TELEGRAM_API_URL must use https" };
++    }
++
++    const url = `${apiUrl.value.replace(/\/+$/, "")}/bot${token.value}/sendMessage`;
++    const response = await postJson(url, { chat_id: chatId.value, text: formatTelegramMessage(lead) });
++    if (!response.ok) return fail(lead.id, response.error, token.value);
++
++    const parsed = parseJson(response.value, isTelegramOk, "telegram-notify response");
++    if (!parsed.ok) return fail(lead.id, parsed.error, token.value);
++
++    log.info(`telegram-notify: lead ${lead.id} delivered`);
++    return { ok: true, value: undefined };
++  },
++};
