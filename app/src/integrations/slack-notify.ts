@@ -1,7 +1,7 @@
 // Сповіщення про новий лід у Slack-канал менеджерів.
 import { readEnv } from "../core/config.js";
 import { postJson } from "../core/http.js";
-import { log } from "../core/log.js";
+import { log, redact } from "../core/log.js";
 import type { Integration, Lead, Result } from "../core/types.js";
 
 export function formatSlackMessage(lead: Lead): string {
@@ -19,8 +19,10 @@ export const slackNotify: Integration = {
 
     const response = await postJson(webhookUrl.value, { text: formatSlackMessage(lead) });
     if (!response.ok) {
-      log.error(`slack-notify: lead ${lead.id} not delivered: ${response.error}`);
-      return response;
+      // URL вебхука Slack сам є секретом, а помилка postJson містить його повністю.
+      const error = redact(response.error.replaceAll(webhookUrl.value, "<SLACK_WEBHOOK_URL>"));
+      log.error(`slack-notify: lead ${lead.id} not delivered: ${error}`);
+      return { ok: false, error };
     }
 
     log.info(`slack-notify: lead ${lead.id} delivered`);

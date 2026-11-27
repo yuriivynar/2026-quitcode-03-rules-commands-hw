@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { log } from "../core/log.js";
 import type { Lead } from "../core/types.js";
 import { formatSlackMessage, slackNotify } from "./slack-notify.js";
 
@@ -45,5 +46,18 @@ describe("slack-notify", () => {
     expect(result.ok).toBe(true);
     const [, init] = fetchMock.mock.calls[0]!;
     expect(JSON.parse(String(init?.body))).toEqual({ text: formatSlackMessage(lead) });
+  });
+
+  it("не віддає URL вебхука ні в Result.error, ні в журнал, коли запит не вдався", async () => {
+    // URL вебхука Slack сам є секретом, а помилка postJson містить його повністю.
+    vi.stubEnv("SLACK_WEBHOOK_URL", "https://hooks.slack.example.test/services/T000/B000/fake");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("forbidden", { status: 403 })));
+    const logError = vi.spyOn(log, "error").mockImplementation(() => {});
+    vi.spyOn(log, "warn").mockImplementation(() => {});
+
+    const result = await slackNotify.send(lead);
+
+    expect(result).toEqual({ ok: false, error: "POST <SLACK_WEBHOOK_URL> failed: HTTP 403" });
+    expect(logError.mock.calls.flat().join("\n")).not.toContain("T000/B000/fake");
   });
 });

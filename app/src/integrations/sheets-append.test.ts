@@ -69,4 +69,21 @@ describe("sheets-append", () => {
     expect(logError).toHaveBeenCalledTimes(1);
     expect(logError.mock.calls.flat().join("\n")).not.toContain("fake-sheets-token-0000");
   });
+
+  it("не віддає токен таблиці ні в Result.error, ні в журнал, коли запит не вдався", async () => {
+    // Помилка postJson має вигляд `POST <url> failed: …`, тобто несе `?token=`.
+    // 403 — без повторів, щоб тест не чекав пауз між спробами.
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("forbidden", { status: 403 })));
+    const logError = vi.spyOn(log, "error").mockImplementation(() => {});
+    vi.spyOn(log, "warn").mockImplementation(() => {});
+
+    const result = await sheetsAppend.send(lead);
+
+    expect(result).toEqual({
+      ok: false,
+      error: "POST https://sheets.example.test/append?token=<REDACTED> failed: HTTP 403",
+    });
+    expect(logError).toHaveBeenCalledTimes(1);
+    expect(logError.mock.calls.flat().join("\n")).not.toContain("fake-sheets-token-0000");
+  });
 });

@@ -1,7 +1,7 @@
 // Сповіщення про новий лід у Telegram-чат менеджерів.
 import { readEnv } from "../core/config.js";
 import { postJson } from "../core/http.js";
-import { log } from "../core/log.js";
+import { log, redact } from "../core/log.js";
 import { isRecord, isString, parseJson } from "../core/parse.js";
 import type { Integration, Lead, Result } from "../core/types.js";
 
@@ -60,8 +60,11 @@ export const telegramNotify: Integration = {
       text: formatTelegramMessage(lead),
     });
     if (!response.ok) {
-      log.error(`telegram-notify: lead ${lead.id} not delivered: ${response.error}`);
-      return response;
+      // Помилка postJson містить повний URL, а в ньому `/bot<token>/`. Маскуємо до
+      // журналу й до повернення; точне значення токена — окремо від шаблонів `redact`.
+      const error = redact(response.error.replaceAll(botToken.value, "<REDACTED>"));
+      log.error(`telegram-notify: lead ${lead.id} not delivered: ${error}`);
+      return { ok: false, error };
     }
 
     const data = parseJson(response.value, isTelegramResponse, "telegram-notify");

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { log } from "../core/log.js";
 import type { Lead } from "../core/types.js";
 import { formatTelegramMessage, telegramNotify } from "./telegram-notify.js";
 
@@ -98,5 +99,21 @@ describe("telegram-notify", () => {
       ok: false,
       error: "telegram error: request rejected",
     });
+  });
+
+  it("не віддає токен бота ні в Result.error, ні в журнал, коли запит не вдався", async () => {
+    // Токен у шляху `/bot<token>/`, а помилка postJson містить повний URL.
+    // Шаблон `redact` для токенів ботів цей тестовий токен не впізнає — маскує модуль.
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("forbidden", { status: 403 })));
+    const logError = vi.spyOn(log, "error").mockImplementation(() => {});
+    vi.spyOn(log, "warn").mockImplementation(() => {});
+
+    const result = await telegramNotify.send(lead);
+
+    expect(result).toEqual({
+      ok: false,
+      error: "POST https://tg.example.test/bot<REDACTED>/sendMessage failed: HTTP 403",
+    });
+    expect(logError.mock.calls.flat().join("\n")).not.toContain("fake-telegram-token-0000");
   });
 });

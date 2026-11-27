@@ -2,7 +2,7 @@
 // (2024), приведено до конвенцій проєкту без зміни поведінки.
 import { readEnv } from "../core/config.js";
 import { postJson } from "../core/http.js";
-import { log } from "../core/log.js";
+import { log, redact } from "../core/log.js";
 import { isRecord, isString, parseJson } from "../core/parse.js";
 import type { Integration, Lead, Result } from "../core/types.js";
 
@@ -38,8 +38,13 @@ const sheetsAppend: Integration = {
       { retries: 0 },
     );
     if (!response.ok) {
-      log.error(`sheets-append: lead ${lead.id} not delivered: ${response.error}`);
-      return response;
+      // Помилка postJson містить повний URL (`POST <url> failed: …`), тобто `?token=`.
+      // Маскуємо до журналу й до повернення: Result.error читає не лише log. `redact`
+      // ловить відомі форми секретів, а точне значення токена прибираємо окремо —
+      // шаблон міг би не впізнати токен нестандартного вигляду.
+      const error = redact(response.error.replaceAll(token.value, "<REDACTED>"));
+      log.error(`sheets-append: lead ${lead.id} not delivered: ${error}`);
+      return { ok: false, error };
     }
 
     const data = parseJson(response.value, isSheetsResponse, "sheets-append");
