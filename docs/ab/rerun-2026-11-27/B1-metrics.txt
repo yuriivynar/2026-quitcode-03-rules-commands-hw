@@ -1,0 +1,16 @@
+=== npm test ===
+ Test Files  7 passed (7)
+      Tests  30 passed (30)
+
+=== check:rules ===
+  core-untouched    0
+
+by file:
+  src/sync/state.ts    1
+
+TOTAL: 1 violation(s)
+
+=== git status --short ===
+ A docs/core-requests/lead-utm-campaign.md
+
+=== чи зачеплено захищене ===

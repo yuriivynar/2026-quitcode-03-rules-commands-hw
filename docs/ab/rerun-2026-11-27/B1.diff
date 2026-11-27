@@ -1,0 +1,59 @@
+diff --git a/docs/core-requests/lead-utm-campaign.md b/docs/core-requests/lead-utm-campaign.md
+new file mode 100644
+index 0000000..5eb7d17
+--- /dev/null
++++ b/docs/core-requests/lead-utm-campaign.md
+@@ -0,0 +1,53 @@
++# Запит до платформної команди: `Lead.utmCampaign`
++
++**Статус:** очікує рев'ю платформної команди
++**Дата:** 2026-11-27
++**Клієнт:** Studio Nova (`lead-sync`)
++
++## Навіщо
++
++Клієнт хоче бачити в Google-таблиці, з якої рекламної кампанії прийшов лід. Форма
++сайту вже передає поле `utmCampaign` (рядок, може бути відсутнім), але в `Lead` його
++немає, тож інтеграції не можуть його використати. `src/core/**` у клієнтських задачах
++не редагується, тому зміна йде окремим запитом.
++
++## Зміна в core
++
++`app/src/core/types.ts`, `interface Lead`, нове необов'язкове поле:
++
++```diff
++   budgetUsd?: number;
+++  /** utm_campaign із форми сайту; відсутнє, якщо форма його не передала. */
+++  utmCampaign?: string;
++   /** ISO-8601, UTC. */
++   createdAt: string;
++```
++
++- Поле опційне: наявні інтеграції та ліди без кампанії не ламаються.
++- Інших змін у core не потрібно (HTTP, парсинг, логер — без змін).
++- Після злиття: `npm run check:rules -- --write-lock` для `scripts/core.lock.json`.
++
++## Що робимо після злиття (клієнтський PR)
++
++`app/src/integrations/sheets-append.ts`: кампанія стає останньою колонкою рядка,
++порядок наявних колонок не змінюється; за відсутності значення — `""`, як для `phone`:
++
++```diff
++-      { values: [[lead.createdAt, lead.name, lead.email, lead.phone ?? "", lead.source]] },
+++      { values: [[lead.createdAt, lead.name, lead.email, lead.phone ?? "", lead.source, lead.utmCampaign ?? ""]] },
++```
++
++`app/src/integrations/sheets-append.test.ts`:
++
++- наявний тест успішної відправки — очікуваний рядок отримує `""` в кінці;
++- новий тест: лід з `utmCampaign: "autumn_sale_2026"` → кампанія в останній колонці.
++
++Slack і Telegram не змінюються: кампанію в сповіщення не додаємо, туди йдуть лише
++ім'я, джерело й бюджет.
++
++## Поза цим репозиторієм
++
++- Код, що перетворює заявку з форми на `Lead`, має переносити `utmCampaign`. Інакше
++  колонка лишиться порожньою. У `lead-sync` такого коду немає: `runSync` отримує
++  готові ліди.
++- У Google-таблиці потрібен заголовок нової колонки в кінці (напр. «Кампанія»).
