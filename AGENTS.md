@@ -12,7 +12,7 @@
 | Команда | Що робить |
 |---|---|
 | `npm install` | встановлення (є лише devDependencies) |
-| `npm test` | Vitest, зараз 7 файлів / 24 тести |
+| `npm test` | Vitest, зараз 7 файлів / 30 тестів |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run check:rules` | статична перевірка конвенцій, зараз `TOTAL: 1 violation(s)` |
 

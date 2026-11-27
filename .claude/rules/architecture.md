@@ -7,77 +7,61 @@ paths:
 
 ## Контекст
 
-`app/src/` поділений на три шари (`core/`, `integrations/`, `sync/`), і той самий
-`core/` працює в усіх клієнтських воркерах агенції. Тому напрям залежностей,
-спосіб додати інтеграцію і публічний API ядра — фіксовані, а не вигадуються
-заново в кожній задачі.
+`app/src/` — три шари (`core/`, `integrations/`, `sync/`), а той самий `core/` працює
+в усіх воркерах агенції. Напрям залежностей, спосіб додати інтеграцію й API ядра
+фіксовані, а не вигадуються в кожній задачі.
 
 ## Правило
 
-### Шари й напрям залежностей
+### Шари
 
-- `core/` — платформа: типи, HTTP, конфіг, парсинг, логер. `core/` **не імпортує**
-  нічого з `integrations/` і `sync/`.
-- `integrations/` і `sync/` імпортують з `core/`. Імпорт у зворотний бік — помилка.
-- `integrations/` нічого не знають про `sync/` і не імпортують один одного.
-  Єдиний файл, якому можна імпортувати сусідні інтеграції, — `integrations/index.ts`.
-- `sync/` не імпортує ні файли інтеграцій, ні реєстр: `runSync(leads, integrations,
-  statePath)` з `app/src/sync/run.ts` отримує список параметром і знає лише контракт
-  `Integration` з `app/src/core/types.ts`. Список збирає реєстр
-  `app/src/integrations/index.ts` — для точки входу, не для `sync/`.
-- Нових шарів і тек не створюй — ні поза цими трьома, ні всередині них
-  (`integrations/shared/`, `sync/lib/` — теж ні): файли лежать плоско. Спільного
-  коду поза `core/` не існує, а `core/` не змінюється.
+- `core/` не імпортує нічого з `integrations/` і `sync/`; ті імпортують з `core/`.
+- Інтеграції не знають про `sync/` і не імпортують одна одну — крім реєстру
+  `integrations/index.ts`.
+- `sync/` не імпортує ні інтеграцій, ні реєстру: `runSync(leads, integrations,
+  statePath)` з `sync/run.ts` отримує список параметром і знає лише контракт
+  `Integration`. Список збирає `integrations/index.ts` для точки входу.
+- Нових шарів і тек не створюй, зокрема всередині шарів (`integrations/shared/`,
+  `sync/lib/`): файли лежать плоско. Спільного коду поза `core/` немає.
 
-### Нова зовнішня система — два файли і реєстрація
+### Нова зовнішня система
 
-1. `app/src/integrations/<kebab-name>.ts` — **іменований** експорт об'єкта типу
+1. `app/src/integrations/<kebab-name>.ts` — **іменований** експорт типу
    `Integration` (зразок — `slack-notify.ts`; `export default` у `sheets-append.ts` —
-   спадщина, не копіюй її). Контракт має рівно три члени:
-   - `name: "<kebab-name>"` — збігається з іменем файлу;
-   - `requiredEnv: readonly string[]` — імена потрібних змінних середовища
-     (лише імена, не значення); якщо таких немає — `[]`;
-   - `send(lead: Lead): Promise<Result<void>>`.
-2. `app/src/integrations/<kebab-name>.test.ts` — тест поруч: успішна відправка
-   (перевірити URL і тіло запиту), відсутня змінна середовища, помилка від
-   зовнішньої системи.
-3. `app/src/integrations/index.ts` — **два рядки**: `import` модуля і один елемент
-   у масиві `integrations`.
+   спадщина). Рівно три члени: `name: "<kebab-name>"` (= ім'я файлу),
+   `requiredEnv: readonly string[]` (лише імена змінних; немає — `[]`),
+   `send(lead: Lead): Promise<Result<void>>`.
+2. `<kebab-name>.test.ts` поруч: успішна відправка (URL і тіло), відсутня змінна
+   середовища, помилка від зовнішньої системи.
+3. `integrations/index.ts` — **два рядки**: `import` і елемент масиву `integrations`.
 
-Більше нічого: ні змін у `core/`, ні змін у `sync/`, ні нових файлів конфігурації.
+Більше нічого: ні змін у `core/` чи `sync/`, ні нових конфігів.
 
-### Публічний API ядра — рівно цей список
+### Публічний API ядра — рівно цей
 
 | Модуль | Що існує |
 |---|---|
 | `core/types.ts` | `Lead`, `Result<T>`, `Integration` |
 | `core/http.ts` | `postJson(url, body, options?)` → `Promise<Result<string>>`, `PostOptions` |
-| `core/config.ts` | `readEnv(name, env?)` → `Result<string>` (другий параметр — лише для тестів, за замовчуванням `process.env`) |
+| `core/config.ts` | `readEnv(name, env?)` → `Result<string>` (`env` — лише для тестів) |
 | `core/parse.ts` | `parseJson(text, guard, label?)` → `Result<T>`, `Guard<T>`, `isRecord`, `isString`, `isNumber` |
 | `core/log.ts` | `log.info`, `log.warn`, `log.error`, `redact(text)` |
 
-Іншого експорту в `core/` не існує: не імпортуй того, чого немає в таблиці, і не
-вигадуй нових сигнатур, **полів** і типів для того, що є. Склад типів ядра
-(`Lead`, `Result`, `Integration`) теж заморожений — розширювати їх поза ядром не
-можна: ні `Lead & { ... }`, ні власний `interface Lead`, ні `as`-перетворення до
-ширшого типу. Бракує поля, функції чи параметра — це зміна core: зупинись і дай
-звіт за пунктами з правила `do-not-touch`.
+Іншого немає: не імпортуй відсутнього й не вигадуй сигнатур, полів і типів. Типи
+ядра заморожені й ззовні не розширюються — ні `Lead & { ... }`, ні власний
+`interface Lead`, ні `as` до ширшого типу. Бракує поля чи функції — це зміна core:
+зупинись і дай звіт за `do-not-touch`.
 
 ## Як перевірити
 
-`grep` запускай у **git bash** (у PowerShell його немає). Порожній вивід = пройдено.
+`grep` — у git bash; порожній вивід = пройдено.
 
-- Ядро не залежить від решти проєкту:
+- Ядро не залежить від решти:
   `grep -rnE "['\"][^'\"]*(\.\./)+(integrations|sync)/" app/src/core/`
-  (ловить обидва типи лапок, `import()`, `require()` і вкладені теки).
-- Інтеграції не знають про `sync/`:
+- Інтеграції не знають про `sync/` (не `grep "sync/"` — той ловить `async/`):
   `grep -rnE "['\"][^'\"]*/sync/" app/src/integrations/`
-  (простий `grep -rn "sync/"` не годиться — він ловить `async/await`).
 - Інтеграції не імпортують одна одну:
   `grep -rnE "^\s*import .*['\"]\./" app/src/integrations/ --include="*.ts" | grep -v "\.test\.ts:" | grep -v "^app/src/integrations/index\.ts:"`
-- Після додавання інтеграції:
-  `ls app/src/integrations/<kebab-name>.ts app/src/integrations/<kebab-name>.test.ts` → обидва файли є;
-  `grep -nE "<kebab-name>|<camelName>" app/src/integrations/index.ts` → **два** рядки
-  (import і елемент масиву).
-- Кожен імпорт з `core/` звіряється з таблицею вище;
-  `cd app && npm run typecheck` → без помилок (бракує `requiredEnv` — впаде саме тут).
+- Нова інтеграція: обидва файли є (`ls`), а
+  `grep -nE "<kebab-name>|<camelName>" app/src/integrations/index.ts` → два рядки.
+- Імпорти з `core/` — лише з таблиці; `cd app && npm run typecheck` → без помилок.
